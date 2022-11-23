@@ -1,12 +1,12 @@
 #! /usr/bin/python
-# SPDX-FileCopyrightText: 2017 Tony DiCola for Adafruit Industries
-# SPDX-FileCopyrightText: 2017 James DeVito for Adafruit Industries
-# SPDX-License-Identifier: MIT
-
-# This example is for use on (Linux) computers that are using CPython with
-# Adafruit Blinka to support CircuitPython libraries. CircuitPython does
-# not support PIL/pillow (python imaging library)!
-
+# webcam-lcd - A Nifty PIL based driver for displaying webcamd stats with the Adafruit 128x32 PiOLED
+#                                                            (https://www.adafruit.com/product/3527)
+#
+# webcamd is a high performance MJPEG HTTP server and can be found here: https://github.com/synman/webcamd
+#
+# Written by Shell M. Shrader <shell@shellware.com>
+# Original Source / Licence reference:  (https://github.com/adafruit/Adafruit_CircuitPython_SSD1306/blob/main/examples/ssd1306_stats.py)
+#
 import time
 import subprocess
 
@@ -32,55 +32,156 @@ disp.show()
 # Make sure to create image with mode '1' for 1-bit color.
 width = disp.width
 height = disp.height
-image = Image.new("1", (width, height))
 
-# Get drawing object to draw on image.
-draw = ImageDraw.Draw(image)
+# common box height for our graphs
+boxH = 8
+
+splashImage = Image.new("1", (width, height))
+splashDraw = ImageDraw.Draw(splashImage)
 
 # Draw a black filled box to clear the image.
-draw.rectangle((0, 0, width, height), outline=0, fill=0)
+splashDraw.rectangle((0, 0, width, height), outline=0, fill=0)
 
-# Draw some shapes.
-# First define some constants to allow easy resizing of shapes.
-padding = -2
-top = padding
-bottom = height - padding
-# Move left to right keeping track of the current x position for drawing shapes.
-x = 0
+# Load fonts
+# font = ImageFont.load_default()
+headerFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 9)
+valueFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 10)
+splashFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 14)
 
+s1 = "webcam-lcd"
+s2 = "------------"
+s3 = "By Shellware")
 
-# Load default font.
-font = ImageFont.load_default()
+s1w, s1h = splashFont.getsize(s1)
+s2w, s2h = headerFont.getsize(s2)
+s3w, s3h = headerFont.getsize(s3)
 
-# Alternatively load a TTF font.  Make sure the .ttf font file is in the
-# same directory as the python script!
-# Some other nice fonts to try: http://www.dafont.com/bitmap.php
-# font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 9)
+splashDraw.text((width / 2 - s1w / 2, 0),  s1, font=splashFont, fill=255)
+splashDraw.text((width / 2 - s2w / 2, s1h + 1),  s2, font=headerFont, fill=255)
+splashDraw.text((width / 2 - s3w / 2, s1h + s2h + 2), s3, font=headerFont, fill=255)
+
+disp.image(splashImage)
+disp.show()
+
+time.sleep(10)
+
+# cmd = "nproc"
+# cpus = int(subprocess.check_output(cmd, shell=True).decode("utf-8").replace("\n", ""))
+
+image = Image.new("1", (height, width))
+final = Image.new("1", (width, height))
+
+draw = ImageDraw.Draw(image)
+finalDraw = ImageDraw.Draw(final)
+
+cmd = "hostname"
+hostname = subprocess.check_output(cmd, shell=True).decode("utf-8").replace("\n", "")
 
 while True:
+    cmd = "curl 'http://localhost:8080/?info' -s | jq -r '.config.port, .stats.encodeFps, .stats.sessionCount, .stats.avgStreamFps'"
+    webcam = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    stats = webcam.replace("\r", "").split("\n")
 
-    # Draw a black filled box to clear the image.
-    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+    port = int(stats[0])
+    encodeFps = float(stats[1])
+    sessions = int(stats[2])
+    streamFps = float(stats[3])
+
+    cmd = "mpstat 5 1 -o JSON | jq -r '.sysstat.hosts[0].statistics[0].\"cpu-load\"[0].idle'"
+    cpu = 100. - float(subprocess.check_output(cmd, shell=True).decode("utf-8"))
 
     # Shell scripts for system monitoring from here:
     # https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
-    cmd = "hostname -I | cut -d' ' -f1"
-    IP = subprocess.check_output(cmd, shell=True).decode("utf-8")
-    cmd = 'cut -f 1 -d " " /proc/loadavg'
-    CPU = subprocess.check_output(cmd, shell=True).decode("utf-8")
-    cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%s MB  %.2f%%\", $3,$2,$3*100/$2 }'"
-    MemUsage = subprocess.check_output(cmd, shell=True).decode("utf-8")
-    cmd = 'df -h | awk \'$NF=="/"{printf "Disk: %d/%d GB  %s", $3,$2,$5}\''
-    Disk = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    # cmd = 'cut -f 1 -d " " /proc/loadavg'
+    # load = float(subprocess.check_output(cmd, shell=True).decode("utf-8"))
+    # cpu = load / cpus * 100.
+    # cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%s MB  %.2f%%\", $3,$2,$3*100/$2 }'"
+    # MemUsage = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    # cmd = 'df -h | awk \'$NF=="/"{printf "Disk: %d/%d GB  %s", $3,$2,$5}\''
+    # Disk = subprocess.check_output(cmd, shell=True).decode("utf-8")
 
-    # Write four lines of text.
+    # Draw a black filled box to clear the image.
+    draw.rectangle((0, 0, height, width), outline=0, fill=0)
 
-    draw.text((x, top + 0), "IP: " + IP, font=font, fill=255)
-    draw.text((x, top + 8), "CPU load: " + CPU, font=font, fill=255)
-    draw.text((x, top + 16), MemUsage, font=font, fill=255)
-    draw.text((x, top + 25), Disk, font=font, fill=255)
+
+    cH = "CPU"
+    cHw, cHh = headerFont.getsize(cH)
+
+    top = 0
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+
+    top = cHh + 1
+    draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
+    draw.rectangle((0, top, int(31 * (cpu / 100)), top + boxH), outline=255, fill=255)
+
+    cV = "%.0f %%" % cpu
+    cVw, cVh = valueFont.getsize(cV)
+
+    top = top + boxH + 2
+    draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
+
+
+    cH = "ENCODER"
+    cHw, cHh = headerFont.getsize(cH)
+
+    top = top + cVh + 8
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+
+    top = top + cHh + 1
+    draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
+    draw.rectangle((0, top, int(31 * (encodeFps / 30)), top + boxH), outline=255, fill=255)
+
+    cV = "%.0f FPS" % encodeFps
+    cVw, cVh = valueFont.getsize(cV)
+
+    top = top + boxH + 2
+    draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
+
+
+    cH = "STREAMS"
+    cHw, cHh = headerFont.getsize(cH)
+
+    top = top + cVh + 8
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+
+    top = top + cHh + 1
+    draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
+    draw.rectangle((0, top, int(31 * (streamFps / 30)), top + boxH), outline=255, fill=255)
+
+    cV = "%.0f FPS" % streamFps
+    cVw, cVh = valueFont.getsize(cV)
+
+    top = top + boxH + 2
+    draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
+
+
+
+    cH = "CLIENTS"
+    cHw, cHh = headerFont.getsize(cH)
+
+    top = top + cVh + 8
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+
+    cV = "%d" % sessions
+    cVw, cVh = splashFont.getsize(cV)
+
+    top = top + cHh + 2
+    draw.text((height / 2 - cVw / 2, top), cV, font=splashFont, fill=255)
+
+
+
+    rot = image.crop((0, 0, height, top + cVh)).rotate(90, expand=1)
+    sx, sy = rot.size
+
+    finalDraw.rectangle((0, 0, width, height), outline=0, fill=0)
+    final.paste(rot,(0, 0, sx, sy), rot)
+
+    # print("---------------------------------------")
+    # print("http://%s:%d" % (hostname, port), flush=False)
+    # print("CPU @ %.2f%% busy" % cpu, flush=False)
+    # print("Encoding @ %.1ffps" % encodeFps, flush=False)
+    # print("%d sessions @ avg %.1ffps" % (sessions, streamFps), flush=True)
 
     # Display image.
-    disp.image(image)
+    disp.image(final)
     disp.show()
-    time.sleep(5)
