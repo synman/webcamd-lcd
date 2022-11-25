@@ -8,13 +8,13 @@
 # Original Source / Licence reference:  (https://github.com/adafruit/Adafruit_CircuitPython_SSD1306/blob/main/examples/ssd1306_stats.py)
 #
 import time
+import datetime
 import subprocess
-
-from board import SCL, SDA
 import busio
-from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306
 
+from PIL import Image, ImageDraw, ImageFont
+from board import SCL, SDA
 
 # Create the I2C interface.
 i2c = busio.I2C(SCL, SDA)
@@ -44,21 +44,22 @@ splashDraw.rectangle((0, 0, width, height), outline=0, fill=0)
 
 # Load fonts
 # font = ImageFont.load_default()
-headerFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 9)
-valueFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 10)
-splashFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 14)
+headerFont = ImageFont.truetype('/home/pi/lcdstats/source-code-pro/SourceCodePro-Regular.ttf', 8)
+# headerFont = ImageFont.truetype('/home/pi/lcdstats/misc-fixed.ttf', 9)
+valueFont = ImageFont.truetype('/home/pi/lcdstats/source-code-pro/SourceCodePro-Regular.ttf', 8)
+splashFont = ImageFont.truetype('/home/pi/lcdstats/source-code-pro/SourceCodePro-Regular.ttf', 12)
 
-s1 = "webcam-lcd"
+s1 = "webcamd-lcd"
 s2 = "------------"
-s3 = "By Shellware")
+s3 = "By Shellware"
 
 s1w, s1h = splashFont.getsize(s1)
 s2w, s2h = headerFont.getsize(s2)
 s3w, s3h = headerFont.getsize(s3)
 
 splashDraw.text((width / 2 - s1w / 2, 0),  s1, font=splashFont, fill=255)
-splashDraw.text((width / 2 - s2w / 2, s1h + 1),  s2, font=headerFont, fill=255)
-splashDraw.text((width / 2 - s3w / 2, s1h + s2h + 2), s3, font=headerFont, fill=255)
+splashDraw.text((width / 2 - s2w / 2, s1h + 1),  s2, font=valueFont, fill=255)
+splashDraw.text((width / 2 - s3w / 2, s1h + s2h + 2), s3, font=valueFont, fill=255)
 
 disp.image(splashImage)
 disp.show()
@@ -76,16 +77,37 @@ finalDraw = ImageDraw.Draw(final)
 
 cmd = "hostname"
 hostname = subprocess.check_output(cmd, shell=True).decode("utf-8").replace("\n", "")
+sessions = -1
 
 while True:
     cmd = "curl 'http://localhost:8080/?info' -s | jq -r '.config.port, .stats.encodeFps, .stats.sessionCount, .stats.avgStreamFps'"
     webcam = subprocess.check_output(cmd, shell=True).decode("utf-8")
     stats = webcam.replace("\r", "").split("\n")
 
-    port = int(stats[0])
-    encodeFps = float(stats[1])
-    sessions = int(stats[2])
-    streamFps = float(stats[3])
+    try:
+        port = int(stats[0])
+        encodeFps = float(stats[1])
+        streamFps = float(stats[3])
+
+        # dim the screen if we don't have any active cients
+        if sessions != 0 and int(stats[2]) == 0:
+            sessions = 0
+            splashDraw.rectangle((0, 0, width, height), outline=0, fill=0)
+            disp.image(splashImage)
+            disp.show()
+            time.sleep(5)
+            continue
+
+        sessions = int(stats[2])
+        if sessions == 0: continue
+    except Exception as e:
+        print("%s: unable to query webcamd: [%s]" % (datetime.datetime.now(), e), flush=True)
+        sessions = 0
+        splashDraw.rectangle((0, 0, width, height), outline=0, fill=0)
+        disp.image(splashImage)
+        disp.show()
+        time.sleep(5)
+        continue
 
     cmd = "mpstat 5 1 -o JSON | jq -r '.sysstat.hosts[0].statistics[0].\"cpu-load\"[0].idle'"
     cpu = 100. - float(subprocess.check_output(cmd, shell=True).decode("utf-8"))
@@ -108,7 +130,7 @@ while True:
     cHw, cHh = headerFont.getsize(cH)
 
     top = 0
-    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255, spacing=4)
 
     top = cHh + 1
     draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
@@ -121,11 +143,11 @@ while True:
     draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
 
 
-    cH = "ENCODER"
+    cH = "ENCODE"
     cHw, cHh = headerFont.getsize(cH)
 
     top = top + cVh + 8
-    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255, spacing=4)
 
     top = top + cHh + 1
     draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
@@ -138,11 +160,11 @@ while True:
     draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
 
 
-    cH = "STREAMS"
+    cH = "STREAM"
     cHw, cHh = headerFont.getsize(cH)
 
     top = top + cVh + 8
-    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255, spacing=4)
 
     top = top + cHh + 1
     draw.rectangle((0, top, 31, top + boxH), outline=255, fill=0)
@@ -156,11 +178,11 @@ while True:
 
 
 
-    cH = "CLIENTS"
+    cH = "ACTIVE"
     cHw, cHh = headerFont.getsize(cH)
 
     top = top + cVh + 8
-    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255)
+    draw.text((height / 2 - cHw / 2, top), cH, font=headerFont, fill=255, spacing=4)
 
     cV = "%d" % sessions
     cVw, cVh = splashFont.getsize(cV)
