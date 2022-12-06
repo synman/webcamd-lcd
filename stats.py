@@ -94,8 +94,8 @@ while True:
     try:
         resp = requests.get(url=url)
         if resp.status_code != 200:
-            time.sleep(5)
             print("%s: unable to query webcamd: response code = [%d]" % (datetime.datetime.now(), resp.status_code), flush=True)
+            time.sleep(5)
             continue
 
         data = resp.json()
@@ -106,18 +106,14 @@ while True:
 
         # dim the screen if we don't have any active cients
         if sessions != 0 and data["stats"]["sessionCount"] == 0:
-            sessions = 0
             disp.fill(0)
             disp.show()
-            time.sleep(10)
-            continue
 
         sessions = data["stats"]["sessionCount"]
 
         if sessions == 0:
             time.sleep(10)
             continue
-
 
     except Exception as e:
         print("%s: unable to query webcamd: [%s]" % (datetime.datetime.now(), e), flush=True)
@@ -127,21 +123,10 @@ while True:
         time.sleep(5)
         continue
 
-    # cmd = "mpstat 5 1 -o JSON | jq -r '.sysstat.hosts[0].statistics[0].\"cpu-load\"[0].idle'"
-    # cpu = 100. - float(subprocess.check_output(cmd, shell=True).decode("utf-8"))
-
-    # Shell scripts for system monitoring from here:
-    # https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
-
     cmd = 'cut -f 1 -d " " /proc/loadavg'
     load = float(subprocess.check_output(cmd, shell=True).decode("utf-8"))
     cpu = load / cpus * 100.
     if cpu > 100: cpu = 100
-
-    # cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%s MB  %.2f%%\", $3,$2,$3*100/$2 }'"
-    # MemUsage = subprocess.check_output(cmd, shell=True).decode("utf-8")
-    # cmd = 'df -h | awk \'$NF=="/"{printf "Disk: %d/%d GB  %s", $3,$2,$5}\''
-    # Disk = subprocess.check_output(cmd, shell=True).decode("utf-8")
 
     # Draw a black filled box to clear the image.
     draw.rectangle((0, 0, height, width), outline=0, fill=0)
@@ -198,7 +183,6 @@ while True:
     draw.text((height / 2 - cVw / 2, top), cV, font=valueFont, fill=255)
 
 
-
     cH = "ACTIVE"
     cHw, cHh = headerFont.getsize(cH)
 
@@ -210,7 +194,6 @@ while True:
 
     top = top + cHh + 2
     draw.text((height / 2 - cVw / 2, top), cV, font=splashFont, fill=255)
-
 
 
     rot = image.crop((0, 0, height, top + cVh)).rotate(90, expand=1)
